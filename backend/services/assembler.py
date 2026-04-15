@@ -4,7 +4,7 @@ from typing import List
 import httpx
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-MODEL = "qwen3.5:4b"
+MODEL = "qwen3:4b"
 
 
 async def assemble_and_add_intro(chunk_outputs: List[str], video_title: str) -> dict:
