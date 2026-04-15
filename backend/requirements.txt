@@ -10,3 +10,5 @@ reportlab==4.1.0
 Pillow==10.3.0
 pydantic==2.7.1
 python-multipart==0.0.9
+redis[hiredis]>=5.0.0
+arq>=0.26.0

@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 import httpx
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-MODEL = "qwen3.5:4b"
+MODEL = "qwen3:4b"
 
 _CHUNK_PROMPT = """\
 You are writing a creative learning notebook. A student will read this to deeply \
@@ -85,7 +85,9 @@ async def process_chunks_parallel(
             results[i] = output
             completed += 1
             if progress_callback:
-                progress_callback(completed, f"Processing section {completed} of {total}...")
+                result = progress_callback(completed, f"Processing section {completed} of {total}...")
+                if asyncio.iscoroutine(result):
+                    await result
 
         await asyncio.gather(*[_run(i, chunk) for i, chunk in enumerate(chunks)])
 
