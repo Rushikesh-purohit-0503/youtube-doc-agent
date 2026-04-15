@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+*.egg-info/
+
+# Backend runtime data
+backend/pdfs/
+backend/db/
+backend/.venv/
+
+# Flutter
+flutter_app/build/
+flutter_app/.dart_tool/
+flutter_app/.flutter-plugins
+flutter_app/.flutter-plugins-dependencies
+flutter_app/ios/Pods/
+flutter_app/ios/.symlinks/
+flutter_app/android/.gradle/
+flutter_app/android/local.properties
+flutter_app/pubspec.lock
+
+# IDE / OS
+.DS_Store
+.idea/
+*.iml
+.vscode/
+
+# Local AI tooling
+.code-review-graph/
+ai/local/

@@ -1,0 +1,31 @@
+
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: yt-doc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_NUM_PARALLEL=4
+    restart: unless-stopped
+
+  backend:
+    build: .
+    container_name: yt-doc-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./pdfs:/app/pdfs
+      - ./db:/app/db
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - PDF_DIR=/app/pdfs
+      - DB_PATH=/app/db/history.db
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
