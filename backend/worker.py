@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
 PDF_DIR = os.getenv("PDF_DIR", "/app/pdfs")
-JOB_TTL = 86400  # 24 hours
+JOB_TTL = 86400       # 24 hours for job state
+TRANSCRIPT_TTL = 604800  # 7 days for cached transcripts
 
 
 async def _update(redis, job_id: str, status: str, progress: int, message: str) -> None:
@@ -27,6 +28,12 @@ async def _update(redis, job_id: str, status: str, progress: int, message: str) 
         "message": message,
     })
     await redis.expire(f"job:{job_id}", JOB_TTL)
+
+
+def _video_id_from_url(url: str) -> str:
+    import re
+    match = re.search(r'(?:v=|youtu\.be/|shorts/)([^&\n?#\s]+)', url)
+    return match.group(1) if match else url
 
 
 async def process_video(ctx: dict, job_id: str, youtube_url: str) -> None:
@@ -39,17 +46,26 @@ async def process_video(ctx: dict, job_id: str, youtube_url: str) -> None:
 
         await _update(redis, job_id, "transcribing", 10, "Extracting transcript...")
 
-        try:
-            transcript_text = await get_transcript(youtube_url)
-        except PrivateVideoError:
-            await _update(redis, job_id, "error", 0, "This video is private")
-            return
-        except NoTranscriptError:
-            await _update(
-                redis, job_id, "transcribing", 15,
-                "No captions found — transcribing audio (this may take a few minutes)..."
-            )
-            transcript_text = await transcribe_audio(youtube_url)
+        # ── Transcript cache (skip yt-dlp + Whisper on repeat requests) ──────
+        cache_key = f"transcript:{_video_id_from_url(youtube_url)}"
+        transcript_text: str | None = await redis.get(cache_key)
+
+        if transcript_text:
+            logger.info("Cache hit for %s", youtube_url)
+        else:
+            try:
+                transcript_text = await get_transcript(youtube_url)
+            except PrivateVideoError:
+                await _update(redis, job_id, "error", 0, "This video is private")
+                return
+            except NoTranscriptError:
+                await _update(
+                    redis, job_id, "transcribing", 15,
+                    "No captions found — transcribing audio (this may take a few minutes)..."
+                )
+                transcript_text = await transcribe_audio(youtube_url)
+
+            await redis.set(cache_key, transcript_text, ex=TRANSCRIPT_TTL)
 
         await _update(redis, job_id, "chunking", 30, "Splitting transcript into sections...")
         words = transcript_text.split()
