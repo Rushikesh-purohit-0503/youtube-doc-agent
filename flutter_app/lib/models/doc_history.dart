@@ -4,6 +4,8 @@ class DocHistory {
   final String title;
   final String thumbnailUrl;
   final String createdAt;
+  final String localPdfPath;
+  final String localThumbnailPath;
 
   const DocHistory({
     required this.id,
@@ -11,6 +13,8 @@ class DocHistory {
     required this.title,
     required this.thumbnailUrl,
     required this.createdAt,
+    this.localPdfPath = '',
+    this.localThumbnailPath = '',
   });
 
   factory DocHistory.fromJson(Map<String, dynamic> json) {
@@ -20,8 +24,32 @@ class DocHistory {
       title: json['title'] as String,
       thumbnailUrl: (json['thumbnail_url'] as String?) ?? '',
       createdAt: json['created_at'] as String,
+      localPdfPath: (json['local_pdf_path'] as String?) ?? '',
+      localThumbnailPath: (json['local_thumbnail_path'] as String?) ?? '',
     );
   }
+
+  factory DocHistory.fromMap(Map<String, dynamic> map) {
+    return DocHistory(
+      id: map['id'] as String,
+      jobId: map['job_id'] as String,
+      title: map['title'] as String,
+      thumbnailUrl: (map['thumbnail_url'] as String?) ?? '',
+      createdAt: map['created_at'] as String,
+      localPdfPath: (map['local_pdf_path'] as String?) ?? '',
+      localThumbnailPath: (map['local_thumbnail_path'] as String?) ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'job_id': jobId,
+        'title': title,
+        'thumbnail_url': thumbnailUrl,
+        'created_at': createdAt,
+        'local_pdf_path': localPdfPath,
+        'local_thumbnail_path': localThumbnailPath,
+      };
 
   String get formattedDate {
     try {

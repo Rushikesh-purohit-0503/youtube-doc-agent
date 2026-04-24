@@ -6,6 +6,10 @@ __pycache__/
 .venv/
 *.egg-info/
 
+# Secrets
+.env
+backend/.env
+
 # Backend runtime data
 backend/pdfs/
 backend/db/
@@ -31,3 +35,7 @@ flutter_app/pubspec.lock
 # Local AI tooling
 .code-review-graph/
 ai/local/
+
+# Tally
+backend/tally-7.0-desktop-multifirm.xml
+backend/tally-7.0-uni-multifirm.xml

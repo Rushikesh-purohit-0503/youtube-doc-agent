@@ -41,14 +41,18 @@ services:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - PDF_DIR=/app/pdfs
       - DB_PATH=/app/db/history.db
+      - APP_ENV=${APP_ENV:-development}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS:-720}
+      - REVENUECAT_WEBHOOK_SECRET=${REVENUECAT_WEBHOOK_SECRET}
+      - HF_TOKEN=${HF_TOKEN}
     volumes:
       - ./pdfs:/app/pdfs
       - ./db:/app/db
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy
@@ -60,14 +64,17 @@ services:
     command: arq worker.WorkerSettings
     environment:
       - REDIS_URL=redis://redis:6379
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - PDF_DIR=/app/pdfs
       - DB_PATH=/app/db/history.db
+      - APP_ENV=${APP_ENV:-development}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS:-720}
+      - HF_TOKEN=${HF_TOKEN}
     volumes:
       - ./pdfs:/app/pdfs
       - ./db:/app/db
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_healthy

@@ -4,11 +4,22 @@ import tempfile
 
 import yt_dlp
 
+_model = None  # module-level cache — loaded once per worker process
+
+
+def _get_model():
+    global _model
+    if _model is None:
+        from faster_whisper import WhisperModel
+        model_size = os.getenv("WHISPER_MODEL", "tiny")
+        _model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    return _model
+
 
 def _download_audio(url: str, output_dir: str) -> str:
     output_template = os.path.join(output_dir, '%(id)s.%(ext)s')
     ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[ext=mp4]/best',
         'outtmpl': output_template,
         'quiet': True,
         'no_warnings': True,
@@ -22,7 +33,6 @@ def _download_audio(url: str, output_dir: str) -> str:
 
     audio_path = os.path.join(output_dir, f'{video_id}.{ext}')
     if not os.path.exists(audio_path):
-        # Extension may differ from what yt_dlp reports; scan the directory
         for fname in os.listdir(output_dir):
             if fname.startswith(video_id):
                 return os.path.join(output_dir, fname)
@@ -31,17 +41,15 @@ def _download_audio(url: str, output_dir: str) -> str:
 
 
 def _transcribe_sync(youtube_url: str) -> str:
-    try:
-        from faster_whisper import WhisperModel  # lazy import
-    except ImportError:
-        raise RuntimeError(
-            "faster-whisper is not installed. "
-            "Run: pip install faster-whisper  (requires ~1 GB + ffmpeg)"
-        )
+    model = _get_model()
     with tempfile.TemporaryDirectory() as tmpdir:
         audio_path = _download_audio(youtube_url, tmpdir)
-        model = WhisperModel("small", device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(audio_path, beam_size=5)
+        segments, _ = model.transcribe(
+            audio_path,
+            beam_size=1,
+            vad_filter=True,
+            condition_on_previous_text=False,
+        )
         return ' '.join(seg.text.strip() for seg in segments)
 
 

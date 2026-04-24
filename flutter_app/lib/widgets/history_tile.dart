@@ -1,4 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/doc_history.dart';
@@ -6,7 +7,7 @@ import '../models/doc_history.dart';
 class HistoryTile extends StatelessWidget {
   final DocHistory item;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final Future<void> Function() onDelete;
 
   const HistoryTile({
     super.key,
@@ -29,7 +30,7 @@ class HistoryTile extends StatelessWidget {
         ),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
-      onDismissed: (_) => onDelete(),
+      onDismissed: (_) { onDelete(); },
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -38,16 +39,7 @@ class HistoryTile extends StatelessWidget {
           onTap: onTap,
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: item.thumbnailUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: item.thumbnailUrl,
-                    width: 72,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _placeholder(),
-                    placeholder: (_, __) => _placeholder(),
-                  )
-                : _placeholder(),
+            child: _thumbnail(),
           ),
           title: Text(
             item.title,
@@ -63,6 +55,35 @@ class HistoryTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _thumbnail() {
+    if (item.localThumbnailPath.isNotEmpty) {
+      final file = File(item.localThumbnailPath);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: 72,
+          height: 50,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _networkThumbnail(),
+        );
+      }
+    }
+    return _networkThumbnail();
+  }
+
+  Widget _networkThumbnail() {
+    if (item.thumbnailUrl.isNotEmpty) {
+      return Image.network(
+        item.thumbnailUrl,
+        width: 72,
+        height: 50,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(),
+      );
+    }
+    return _placeholder();
   }
 
   Widget _placeholder() {

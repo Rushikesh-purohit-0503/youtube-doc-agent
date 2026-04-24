@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/doc_history.dart';
-import '../services/api_service.dart';
+import '../services/local_history_service.dart';
 import '../widgets/history_tile.dart';
+import '../widgets/toast.dart';
 import 'viewer_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -13,53 +16,37 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final _api = ApiService.instance;
+  final _local = LocalHistoryService.instance;
   late Future<List<DocHistory>> _historyFuture;
 
   @override
   void initState() {
     super.initState();
-    _historyFuture = _api.getHistory();
+    _historyFuture = _local.getAll();
   }
 
   void _refresh() {
-    setState(() => _historyFuture = _api.getHistory());
+    setState(() { _historyFuture = _local.getAll(); });
   }
 
   Future<void> _delete(DocHistory item) async {
-    try {
-      await _api.deleteDoc(item.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Notebook deleted')),
-      );
-      _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Delete failed: $e')),
-      );
-    }
+    await _local.delete(item.id);
+    if (!mounted) return;
+    Toast.show(context, 'Notebook deleted');
+    _refresh();
   }
 
-  Future<void> _openPdf(DocHistory item) async {
-    // Re-download if local file is missing
-    String pdfPath;
-    try {
-      pdfPath = await _api.downloadPdf(item.jobId);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open: $e')),
-      );
+  void _openPdf(DocHistory item) {
+    final path = item.localPdfPath;
+    if (path.isEmpty || !File(path).existsSync()) {
+      Toast.show(context, 'PDF not found — tap to remove', type: ToastType.error);
+      _delete(item);
       return;
     }
-
-    if (!mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ViewerScreen(pdfPath: pdfPath, title: item.title),
+        builder: (_) => ViewerScreen(pdfPath: path, title: item.title),
       ),
     );
   }
@@ -90,7 +77,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.wifi_off, size: 48, color: Colors.black26),
+                  const Icon(Icons.error_outline, size: 48, color: Colors.black26),
                   const SizedBox(height: 12),
                   Text(
                     'Could not load history\n${snap.error}',
@@ -101,8 +88,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ElevatedButton(
                     onPressed: _refresh,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1A535C),
-                        foregroundColor: Colors.white),
+                      backgroundColor: const Color(0xFF1A535C),
+                      foregroundColor: Colors.white,
+                    ),
                     child: const Text('Retry'),
                   ),
                 ],

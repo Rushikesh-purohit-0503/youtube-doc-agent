@@ -3,7 +3,7 @@ from typing import List
 
 # Maximum words per chunk to stay within the 8192-token context window
 # (12,000 words / 10 chunks = 1,200 words; headroom for prompt template)
-_MAX_WORDS_PER_CHUNK = 1000
+_MAX_WORDS_PER_CHUNK = 2000
 
 
 def chunk_transcript(text: str, num_chunks: int = 10) -> List[str]:
