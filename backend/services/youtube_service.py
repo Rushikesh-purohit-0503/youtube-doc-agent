@@ -27,6 +27,8 @@ requests.Session.send = _no_verify_send  # type: ignore[method-assign]
 
 _COOKIES_FILE = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
 
+_PROXY = os.environ.get('YTDLP_PROXY')  # e.g. "socks5://user:pass@host:port"
+
 _YDL_BASE_OPTS = {
     'quiet': True,
     'no_warnings': True,
@@ -36,6 +38,7 @@ _YDL_BASE_OPTS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     },
     **({"cookiefile": _COOKIES_FILE, "cookiesfrombrowser": None} if os.path.exists(_COOKIES_FILE) else {}),
+    **({"proxy": _PROXY} if _PROXY else {}),
     'no_color': True,
 }
 
