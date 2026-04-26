@@ -6,6 +6,7 @@ import uuid
 from arq.connections import RedisSettings
 
 from services.assembler import assemble_and_add_intro
+from services.plan_service import record_usage
 from services.chunker import chunk_transcript
 from services.history_service import save_to_history
 from services.llm_service import process_chunks_parallel
@@ -130,6 +131,12 @@ async def process_video(ctx: dict, job_id: str, youtube_url: str, template: str 
         chunks = chunk_transcript(transcript_text, num_chunks=10)
 
         await _update(redis, job_id, "processing", 35, f"Summarising content — 0 of {len(chunks)} sections done...")
+
+        # Count usage only when Gemini is about to be called (not on early errors)
+        job_data = await redis.hgetall(f"job:{job_id}")
+        user_id = job_data.get("user_id") or (job_data.get(b"user_id") or b"").decode()
+        if user_id:
+            record_usage(user_id, job_id)
 
         async def _chunk_progress(idx: int, msg: str) -> None:
             pct = 35 + int((idx / len(chunks)) * 43)

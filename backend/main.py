@@ -27,7 +27,7 @@ from routes.webhook import router as webhook_router
 from routes.dev import router as dev_router
 from services.db import init_db
 from services.history_service import delete_from_history, get_history
-from services.plan_service import check_can_generate, check_duration_allowed, record_usage
+from services.plan_service import check_can_generate, check_duration_allowed
 from services.youtube_service import get_video_duration_sec
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379")
@@ -118,8 +118,6 @@ async def generate(
     })
     await app.state.redis.expire(f"job:{job_id}", 86400)
     await app.state.arq.enqueue_job("process_video", job_id, str(body.youtube_url), body.template)
-
-    record_usage(user["id"], job_id)
 
     return GenerateResponse(job_id=job_id, status="queued")
 
