@@ -8,6 +8,7 @@ import warnings
 import requests
 import urllib3
 import yt_dlp
+from youtube_transcript_api import YouTubeTranscriptApi
 
 # Bypass self-signed proxy certs on corporate/VPN networks
 ssl._create_default_https_context = ssl._create_unverified_context  # noqa: SLF001
@@ -24,11 +25,17 @@ def _no_verify_send(self, request, **kwargs):
 
 requests.Session.send = _no_verify_send  # type: ignore[method-assign]
 
+_COOKIES_FILE = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+
 _YDL_BASE_OPTS = {
     'quiet': True,
     'no_warnings': True,
     'nocheckcertificate': True,
-    'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'android']}},
+    'extractor_args': {'youtube': {'player_client': ['web', 'tv_embedded', 'android']}},
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    },
+    **({"cookiefile": _COOKIES_FILE} if os.path.exists(_COOKIES_FILE) else {}),
 }
 
 
@@ -147,10 +154,34 @@ def _get_video_info_sync(url: str) -> dict:
 
 
 def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
-    """Single yt-dlp call that returns both transcript and video metadata.
-    Saves one full YouTube round-trip vs calling info + transcript separately."""
+    """Fetch transcript and video metadata.
+    Tries youtube-transcript-api first (more reliable on cloud IPs), falls back to yt-dlp."""
     video_id = _extract_video_id(url)
+    video_info = {
+        'title': 'Unknown Video',
+        'thumbnail': f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg',
+    }
 
+    # --- Attempt 1: youtube-transcript-api (no bot detection issues) ---
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(
+            video_id, languages=['en', 'en-US', 'en-GB', 'en-IN']
+        )
+        transcript_text = ' '.join(entry['text'] for entry in transcript_list)
+
+        # Fetch title via yt-dlp metadata only (no download)
+        try:
+            with yt_dlp.YoutubeDL({**_YDL_BASE_OPTS, 'skip_download': True}) as ydl:
+                info = ydl.extract_info(url, download=False)
+                video_info['title'] = info.get('title', 'Unknown Video')
+        except Exception:
+            pass
+
+        return transcript_text, video_info
+    except Exception:
+        pass
+
+    # --- Attempt 2: yt-dlp subtitles fallback ---
     with tempfile.TemporaryDirectory() as tmpdir:
         ydl_opts = {
             **_YDL_BASE_OPTS,
@@ -165,11 +196,7 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                video_info = {
-                    'title': info.get('title', 'Unknown Video'),
-                    # hqdefault is always available for public videos; maxresdefault often 404s
-                    'thumbnail': f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg',
-                }
+                video_info['title'] = info.get('title', 'Unknown Video')
         except yt_dlp.utils.DownloadError as exc:
             msg = str(exc).lower()
             if 'private' in msg or 'unavailable' in msg:

@@ -16,6 +16,9 @@ def _get_model():
     return _model
 
 
+_COOKIES_FILE = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+
+
 def _download_audio(url: str, output_dir: str) -> str:
     output_template = os.path.join(output_dir, '%(id)s.%(ext)s')
     ydl_opts = {
@@ -25,6 +28,7 @@ def _download_audio(url: str, output_dir: str) -> str:
         'no_warnings': True,
         'nocheckcertificate': True,
         'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'android']}},
+        **({"cookiefile": _COOKIES_FILE} if os.path.exists(_COOKIES_FILE) else {}),
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
