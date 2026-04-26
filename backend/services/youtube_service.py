@@ -166,27 +166,12 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
         'thumbnail': f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg',
     }
 
-    # --- Attempt 1: YouTube Data API v3 (works from any IP) ---
+    # --- Attempt 1: YouTube timedtext API (works from any IP, no OAuth needed) ---
     youtube_api_key = os.environ.get('YOUTUBE_API_KEY')
     if youtube_api_key:
         try:
             import logging
-            # Get captions list
-            captions_url = (
-                f'https://www.googleapis.com/youtube/v3/captions'
-                f'?part=snippet&videoId={video_id}&key={youtube_api_key}'
-            )
-            resp = requests.get(captions_url, timeout=10)
-            captions_data = resp.json()
-            caption_id = None
-            for item in captions_data.get('items', []):
-                lang = item['snippet']['language']
-                if lang.startswith('en'):
-                    caption_id = item['id']
-                    video_info['title'] = item['snippet'].get('videoId', 'Unknown Video')
-                    break
-
-            # Get video title separately
+            # Get video title
             video_url = (
                 f'https://www.googleapis.com/youtube/v3/videos'
                 f'?part=snippet&id={video_id}&key={youtube_api_key}'
@@ -196,29 +181,25 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
             if vdata.get('items'):
                 video_info['title'] = vdata['items'][0]['snippet']['title']
 
-            if caption_id:
-                # Download caption track
-                track_url = (
-                    f'https://www.googleapis.com/youtube/v3/captions/{caption_id}'
-                    f'?tfmt=srt&key={youtube_api_key}'
-                )
-                track_resp = requests.get(track_url, timeout=30)
-                if track_resp.status_code == 200:
-                    # Strip SRT timestamps and return plain text
-                    import re as _re
-                    srt_text = track_resp.text
-                    lines = srt_text.splitlines()
-                    text_lines = [
-                        l for l in lines
-                        if l.strip()
-                        and not l.strip().isdigit()
-                        and '-->' not in l
-                    ]
-                    transcript_text = ' '.join(text_lines)
+            # Fetch captions via timedtext endpoint (no OAuth required)
+            timedtext_url = (
+                f'https://www.youtube.com/api/timedtext'
+                f'?v={video_id}&lang=en&fmt=json3'
+            )
+            tr = requests.get(timedtext_url, timeout=15)
+            if tr.status_code == 200 and tr.text.strip():
+                data = tr.json()
+                events = data.get('events', [])
+                words = []
+                for event in events:
+                    for seg in event.get('segs', []):
+                        words.append(seg.get('utf8', '').strip())
+                transcript_text = ' '.join(w for w in words if w and w != '\n')
+                if transcript_text.strip():
                     return transcript_text, video_info
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning("YouTube Data API failed: %s", e)
+            logging.getLogger(__name__).warning("YouTube timedtext API failed: %s", e)
 
     # --- Attempt 2: youtube-transcript-api (no bot detection issues) ---
     try:
