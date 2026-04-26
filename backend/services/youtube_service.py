@@ -203,10 +203,10 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
 
     # --- Attempt 2: youtube-transcript-api (no bot detection issues) ---
     try:
-        transcript_list = YouTubeTranscriptApi.get_transcript(
+        fetched = YouTubeTranscriptApi().fetch(
             video_id, languages=['en', 'en-US', 'en-GB', 'en-IN']
         )
-        transcript_text = ' '.join(entry['text'] for entry in transcript_list)
+        transcript_text = ' '.join(entry.text for entry in fetched)
 
         # Fetch title via yt-dlp metadata only (no download)
         try:
