@@ -37,7 +37,7 @@ _YDL_BASE_OPTS = {
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     },
-    **({"cookiefile": _COOKIES_FILE, "cookiesfrombrowser": None} if os.path.exists(_COOKIES_FILE) else {}),
+    **({"cookiefile": _COOKIES_FILE, "cookiesfrombrowser": None} if os.path.isfile(_COOKIES_FILE) else {}),
     **({"proxy": _PROXY} if _PROXY else {}),
     'no_color': True,
 }

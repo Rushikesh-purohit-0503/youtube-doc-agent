@@ -28,7 +28,7 @@ def _download_audio(url: str, output_dir: str) -> str:
         'no_warnings': True,
         'nocheckcertificate': True,
         'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'android']}},
-        **({"cookiefile": _COOKIES_FILE} if os.path.exists(_COOKIES_FILE) else {}),
+        **({"cookiefile": _COOKIES_FILE} if os.path.isfile(_COOKIES_FILE) else {}),
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
