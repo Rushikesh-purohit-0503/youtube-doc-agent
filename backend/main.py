@@ -89,7 +89,7 @@ async def shutdown() -> None:
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.post("/generate", response_model=GenerateResponse)
-@_rate_limit("5/hour")
+@_rate_limit("50/hour")
 async def generate(
     request: Request,
     body: GenerateRequest,
