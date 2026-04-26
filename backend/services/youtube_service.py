@@ -35,8 +35,8 @@ _YDL_BASE_OPTS = {
     'http_headers': {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     },
-    **({"cookiefile": _COOKIES_FILE} if os.path.exists(_COOKIES_FILE) else {}),
-    'cookiefile_update': False,
+    **({"cookiefile": _COOKIES_FILE, "cookiesfrombrowser": None} if os.path.exists(_COOKIES_FILE) else {}),
+    'no_color': True,
 }
 
 
@@ -179,8 +179,9 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
             pass
 
         return transcript_text, video_info
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("youtube-transcript-api failed: %s", e)
 
     # --- Attempt 2: yt-dlp subtitles fallback ---
     with tempfile.TemporaryDirectory() as tmpdir:
