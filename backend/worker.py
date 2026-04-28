@@ -64,53 +64,64 @@ async def process_video(ctx: dict, job_id: str, youtube_url: str, template: str 
     try:
         await _update(redis, job_id, "transcribing", 5, "Connecting to YouTube...")
 
-        # ── Transcript cache (skip yt-dlp + Whisper on repeat requests) ──────
-        cache_key = f"transcript:{_video_id_from_url(youtube_url)}"
-        cached_raw = await redis.hgetall(cache_key)
-        cached = {(k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v) for k, v in cached_raw.items()}
+        video_id = _video_id_from_url(youtube_url)
 
-        if cached:
-            logger.info("Cache hit for %s", youtube_url)
-            transcript_text = cached["transcript"]
-            title = cached["title"]
-            thumbnail_url = cached["thumbnail"]
-            await _update(redis, job_id, "transcribing", 20, f'Found cached transcript for "{title}"')
+        # ── Path A: client pre-fetched transcript using user's IP ─────────────
+        job_state = await redis.hgetall(f"job:{job_id}")
+        prefetched_transcript = job_state.get("prefetched_transcript", "")
+
+        if prefetched_transcript:
+            transcript_text = prefetched_transcript
+            title = job_state.get("prefetched_title") or "Unknown Video"
+            thumbnail_url = job_state.get("prefetched_thumbnail") or f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+            await redis.hset(f"job:{job_id}", mapping={"title": title, "thumbnail_url": thumbnail_url})
+            await _update(redis, job_id, "transcribing", 20, f'Using transcript for "{title}"')
+
         else:
-            try:
-                await _update(redis, job_id, "transcribing", 10, "Fetching video info and captions...")
-                # Single yt-dlp call: fetches captions + metadata together
-                transcript_text, video_info = await get_transcript_and_info(youtube_url)
-                title = video_info["title"]
-                thumbnail_url = video_info["thumbnail"]
-                await _update(redis, job_id, "transcribing", 20, f'Got transcript for "{title}"')
-            except PrivateVideoError:
-                await _update(redis, job_id, "error", 0, "This video is private or unavailable. Try a public video.")
-                return
-            except NoTranscriptError:
-                # No captions — fetch info separately then use Whisper
-                await _update(redis, job_id, "transcribing", 12, "No captions found — fetching video info...")
-                video_info = await get_video_info(youtube_url)
-                title = video_info["title"]
-                thumbnail_url = video_info["thumbnail"]
-                await _update(
-                    redis, job_id, "transcribing", 15,
-                    "No captions available — transcribing audio with Whisper AI (2–5 min)..."
-                )
-                transcript_text = await transcribe_audio(youtube_url)
-                await _update(redis, job_id, "transcribing", 28, "Audio transcription complete!")
+            # ── Path B: server-side fetching (transcript cache → yt-dlp → Whisper) ──
+            cache_key = f"transcript:{video_id}"
+            cached_raw = await redis.hgetall(cache_key)
+            cached = {(k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v) for k, v in cached_raw.items()}
 
-            await redis.hset(cache_key, mapping={
-                "transcript": transcript_text,
+            if cached:
+                logger.info("Cache hit for %s", youtube_url)
+                transcript_text = cached["transcript"]
+                title = cached["title"]
+                thumbnail_url = cached["thumbnail"]
+                await _update(redis, job_id, "transcribing", 20, f'Found cached transcript for "{title}"')
+            else:
+                try:
+                    await _update(redis, job_id, "transcribing", 10, "Fetching video info and captions...")
+                    transcript_text, video_info = await get_transcript_and_info(youtube_url)
+                    title = video_info["title"]
+                    thumbnail_url = video_info["thumbnail"]
+                    await _update(redis, job_id, "transcribing", 20, f'Got transcript for "{title}"')
+                except PrivateVideoError:
+                    await _update(redis, job_id, "error", 0, "This video is private or unavailable. Try a public video.")
+                    return
+                except NoTranscriptError:
+                    await _update(redis, job_id, "transcribing", 12, "No captions found — fetching video info...")
+                    video_info = await get_video_info(youtube_url)
+                    title = video_info["title"]
+                    thumbnail_url = video_info["thumbnail"]
+                    await _update(
+                        redis, job_id, "transcribing", 15,
+                        "No captions available — transcribing audio with Whisper AI (2–5 min)..."
+                    )
+                    transcript_text = await transcribe_audio(youtube_url)
+                    await _update(redis, job_id, "transcribing", 28, "Audio transcription complete!")
+
+                await redis.hset(cache_key, mapping={
+                    "transcript": transcript_text,
+                    "title": title,
+                    "thumbnail": thumbnail_url,
+                })
+                await redis.expire(cache_key, TRANSCRIPT_TTL)
+
+            await redis.hset(f"job:{job_id}", mapping={
                 "title": title,
-                "thumbnail": thumbnail_url,
+                "thumbnail_url": thumbnail_url,
             })
-            await redis.expire(cache_key, TRANSCRIPT_TTL)
-
-        # Store title/thumbnail in job state so status endpoint can return them
-        await redis.hset(f"job:{job_id}", mapping={
-            "title": title,
-            "thumbnail_url": thumbnail_url,
-        })
 
         await _update(redis, job_id, "chunking", 30, "Analysing transcript structure...")
         words = transcript_text.split()

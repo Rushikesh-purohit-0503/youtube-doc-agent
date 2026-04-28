@@ -25,7 +25,6 @@ services:
     volumes:
       - ./pdfs:/app/pdfs
       - ./db:/app/db
-      - ./cookies.txt:/app/cookies.txt
     depends_on:
       redis:
         condition: service_healthy
@@ -41,7 +40,6 @@ services:
     volumes:
       - ./pdfs:/app/pdfs
       - ./db:/app/db
-      - ./cookies.txt:/app/cookies.txt
     depends_on:
       redis:
         condition: service_healthy

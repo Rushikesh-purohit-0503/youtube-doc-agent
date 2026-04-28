@@ -8,6 +8,10 @@ TEMPLATES = Literal['storybook', 'professional', 'academic', 'minimal']
 class GenerateRequest(BaseModel):
     youtube_url: HttpUrl
     template: TEMPLATES = 'storybook'
+    # Optional fields pre-fetched by the client using the user's IP
+    transcript: Optional[str] = None
+    title: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 
 class GenerateResponse(BaseModel):

@@ -100,22 +100,33 @@ async def generate(
     if not allowed:
         raise HTTPException(status_code=403, detail=reason)
 
-    # Check video duration limit for plan
-    duration_sec = await asyncio.get_event_loop().run_in_executor(
-        None, get_video_duration_sec, str(body.youtube_url)
-    )
-    if duration_sec > 0:
-        dur_allowed, dur_reason = check_duration_allowed(user["plan"], duration_sec)
-        if not dur_allowed:
-            raise HTTPException(status_code=403, detail=dur_reason)
+    # Check video duration limit — skip if client pre-fetched transcript
+    # (duration was already validated client-side or transcript word count used)
+    if not body.transcript:
+        duration_sec = await asyncio.get_event_loop().run_in_executor(
+            None, get_video_duration_sec, str(body.youtube_url)
+        )
+        if duration_sec > 0:
+            dur_allowed, dur_reason = check_duration_allowed(user["plan"], duration_sec)
+            if not dur_allowed:
+                raise HTTPException(status_code=403, detail=dur_reason)
 
     job_id = str(uuid.uuid4())
-    await app.state.redis.hset(f"job:{job_id}", mapping={
+    job_data: dict = {
         "status": "queued",
         "progress": "0",
         "message": "Queued for processing",
         "user_id": user["id"],
-    })
+    }
+    # Store prefetched transcript/metadata so the worker can skip yt-dlp
+    if body.transcript:
+        job_data["prefetched_transcript"] = body.transcript
+    if body.title:
+        job_data["prefetched_title"] = body.title
+    if body.thumbnail_url:
+        job_data["prefetched_thumbnail"] = body.thumbnail_url
+
+    await app.state.redis.hset(f"job:{job_id}", mapping=job_data)
     await app.state.redis.expire(f"job:{job_id}", 86400)
     await app.state.arq.enqueue_job("process_video", job_id, str(body.youtube_url), body.template)
 
