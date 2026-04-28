@@ -187,6 +187,7 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
                 f'?v={video_id}&lang=en&fmt=json3'
             )
             tr = requests.get(timedtext_url, timeout=15)
+            logging.getLogger(__name__).warning("timedtext status=%s len=%s", tr.status_code, len(tr.text))
             if tr.status_code == 200 and tr.text.strip():
                 data = tr.json()
                 events = data.get('events', [])
@@ -197,8 +198,10 @@ def _get_transcript_and_info_sync(url: str) -> tuple[str, dict]:
                 transcript_text = ' '.join(w for w in words if w and w != '\n')
                 if transcript_text.strip():
                     return transcript_text, video_info
+                logging.getLogger(__name__).warning("timedtext returned empty transcript")
+            else:
+                logging.getLogger(__name__).warning("timedtext empty response or non-200")
         except Exception as e:
-            import logging
             logging.getLogger(__name__).warning("YouTube timedtext API failed: %s", e)
 
     # --- Attempt 2: youtube-transcript-api (no bot detection issues) ---
