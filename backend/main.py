@@ -191,3 +191,7 @@ async def health() -> dict:
 @app.get("/config")
 async def config() -> dict:
     return {"is_dev": APP_ENV in ("dev", "development")}
+
+@app.get("/")
+async def get() -> dict:
+    return {"get": "Running..."}
